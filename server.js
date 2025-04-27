@@ -10,7 +10,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-// Reservation Schema (✅ define globally here)
+// Reservation Schema (Global)
 const reservationSchema = new mongoose.Schema({
   name: String,
   phone: String,
@@ -20,47 +20,37 @@ const reservationSchema = new mongoose.Schema({
   message: String,
 });
 
-// ✅ Create the Reservation model globally
+// Reservation Model (Global)
 const Reservation = mongoose.model('Reservation', reservationSchema);
 
-// Connect to MongoDB
-mongoose.connect('mongodb+srv://zemichael:zemichael@flavorsofitaly.krgvudl.mongodb.net/restaurantDB?retryWrites=true&w=majority&appName=FlavorsOfItaly')
-.then(async () => {
+// MongoDB Connection (dynamic for Render)
+const mongoURI = process.env.MONGODB_URI || 'mongodb+srv://zemichael:zemichael@flavorsofitaly.krgvudl.mongodb.net/restaurantDB?retryWrites=true&w=majority&appName=FlavorsOfItaly';
+
+mongoose.connect(mongoURI, {})
+.then(() => {
   console.log('✅ Connected to MongoDB');
 
-  // Insert Sample Data (optional testing)
-  const sampleReservation = new Reservation({
-    name: 'John Doe',
-    phone: '+1234567890',
-    person: '2 Person',
-    date: '2025-05-01',
-    time: '07:00pm',
-    message: 'Window seat please!'
-  });
-
-  try {
-    await sampleReservation.save();
-    console.log('✅ Sample Reservation Saved Successfully');
-  } catch (error) {
-    console.error('❌ Failed to Save Sample Reservation:', error);
-  }
-
-  // Start server AFTER MongoDB connects
+  // Start server after successful database connection
   app.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`✅ Server running on http://localhost:${PORT}`);
   });
 
 })
 .catch(err => console.error('❌ MongoDB connection error:', err));
 
-// ✅ Route (can now use Reservation freely)
+// Handle reservation form submissions
 app.post('/reserve', async (req, res) => {
   try {
     const reservation = new Reservation(req.body);
     await reservation.save();
     res.status(201).send('Reservation saved successfully!');
   } catch (err) {
-    console.error(err);
+    console.error('❌ Error saving reservation:', err);
     res.status(500).send('Failed to save reservation.');
   }
+});
+
+// Root route to confirm backend is alive (Optional)
+app.get('/', (req, res) => {
+  res.send('✅ Reservation backend is running.');
 });
