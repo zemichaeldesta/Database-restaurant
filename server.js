@@ -1,16 +1,15 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY); // ✅ Use Stripe secret from env
 
-// Setup
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Reservation Schema (Global)
+// Reservation Schema
 const reservationSchema = new mongoose.Schema({
   name: String,
   phone: String,
@@ -20,25 +19,21 @@ const reservationSchema = new mongoose.Schema({
   message: String,
 });
 
-// Reservation Model (Global)
+// Model
 const Reservation = mongoose.model('Reservation', reservationSchema);
 
-// MongoDB Connection (dynamic for Render)
-const mongoURI = process.env.MONGODB_URI || 'mongodb+srv://zemichael:zemichael@flavorsofitaly.krgvudl.mongodb.net/restaurantDB?retryWrites=true&w=majority&appName=FlavorsOfItaly';
-
+// Connect to MongoDB
+const mongoURI = process.env.MONGODB_URI;
 mongoose.connect(mongoURI, {})
-.then(() => {
-  console.log('✅ Connected to MongoDB');
+  .then(() => {
+    console.log('✅ Connected to MongoDB');
+    app.listen(PORT, () => {
+      console.log(`✅ Server running on http://localhost:${PORT}`);
+    });
+  })
+  .catch(err => console.error('❌ MongoDB connection error:', err));
 
-  // Start server after successful database connection
-  app.listen(PORT, () => {
-    console.log(`✅ Server running on http://localhost:${PORT}`);
-  });
-
-})
-.catch(err => console.error('❌ MongoDB connection error:', err));
-
-// Handle reservation form submissions
+// Reservation route
 app.post('/reserve', async (req, res) => {
   try {
     const reservation = new Reservation(req.body);
@@ -50,7 +45,38 @@ app.post('/reserve', async (req, res) => {
   }
 });
 
-// Root route to confirm backend is alive (Optional)
+// Stripe Checkout route
+app.post('/create-checkout-session', async (req, res) => {
+  try {
+    const { items } = req.body;
+
+    const lineItems = items.map(item => ({
+      price_data: {
+        currency: 'usd',
+        product_data: {
+          name: item.name,
+        },
+        unit_amount: item.price * 100, // Convert to cents
+      },
+      quantity: item.quantity,
+    }));
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      line_items: lineItems,
+      success_url: 'https://your-frontend-url.com/success',
+      cancel_url: 'https://your-frontend-url.com/cancel',
+    });
+
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('❌ Stripe session error:', err);
+    res.status(500).send('Failed to create Stripe session');
+  }
+});
+
+// Root route
 app.get('/', (req, res) => {
-  res.send('✅ Reservation backend is running.');
+  res.send('✅ Backend is running.');
 });
